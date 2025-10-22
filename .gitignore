@@ -1,0 +1,27 @@
+# Çevre değişkenleri (güvenlik için)
+.env
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Veri dosyaları (opsiyonel)
+data/
+*.csv
+
+# Log dosyaları
+*.log
+
+# İşletim sistemi
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Geçici dosyalar
+*.tmp
+*.temp
