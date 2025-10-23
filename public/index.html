@@ -279,55 +279,6 @@
          box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
       }
 
-      .hourly-calendar {
-         max-height: 500px;
-         overflow-y: auto;
-         border: 2px solid #ecf0f1;
-         border-radius: 10px;
-         padding: 15px;
-      }
-
-      .calendar-grid {
-         display: grid;
-         grid-template-columns: 60px repeat(20, 1fr);
-         gap: 2px;
-         font-size: 0.8rem;
-      }
-
-      .calendar-header {
-         background: linear-gradient(135deg, #ff6b35, #f7931e);
-         color: white;
-         padding: 10px 8px;
-         text-align: center;
-         font-weight: 600;
-         border-radius: 5px;
-      }
-
-      .calendar-cell {
-         padding: 8px 6px;
-         text-align: center;
-         border: 1px solid #dee2e6;
-         border-radius: 4px;
-         cursor: pointer;
-         transition: all 0.2s;
-         font-size: 0.7rem;
-      }
-
-      .calendar-cell.available {
-         background: #e8f5e8;
-         color: #2e7d32;
-      }
-
-      .calendar-cell.reserved {
-         background: #ffebee;
-         color: #c62828;
-         cursor: not-allowed;
-      }
-
-      .calendar-cell:hover.available {
-         background: #c8e6c9;
-         transform: scale(1.05);
-      }
 
       .empty-state {
          text-align: center;
@@ -341,40 +292,6 @@
          opacity: 0.3;
       }
 
-      .csv-editor {
-         width: 100%;
-         font-family: 'Courier New', monospace;
-         padding: 15px;
-         border: 2px solid #ecf0f1;
-         border-radius: 10px;
-         font-size: 0.9rem;
-         line-height: 1.4;
-         resize: vertical;
-         min-height: 200px;
-      }
-
-      .csv-controls {
-         display: flex;
-         gap: 10px;
-         align-items: center;
-         margin-bottom: 15px;
-         flex-wrap: wrap;
-      }
-
-      .csv-controls select {
-         padding: 8px 12px;
-         border: 2px solid #ecf0f1;
-         border-radius: 8px;
-         font-size: 1rem;
-         background: white;
-      }
-
-      .csv-controls input[type="date"] {
-         padding: 8px 12px;
-         border: 2px solid #ecf0f1;
-         border-radius: 8px;
-         font-size: 1rem;
-      }
 
       @media (max-width: 1200px) {
          .main-grid {
@@ -505,49 +422,6 @@
                </div>
            </div>
 
-      <div class="card">
-         <div class="card-header">
-            <h2><i class="fas fa-calendar-alt"></i> Saatlik Rezervasyon Takvimi (12:00-23:00)</h2>
-            <div style="display: flex; gap: 10px; align-items: center;">
-               <input type="date" id="calendar-date" min="2025-10-24" max="2025-12-31" 
-                      style="padding: 8px 12px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 1rem;">
-               <button class="refresh-btn" onclick="loadHourlyCalendar()">
-                  <i class="fas fa-sync-alt"></i> Yenile
-               </button>
-            </div>
-         </div>
-         <div class="hourly-calendar" id="hourly-calendar">
-            <div class="empty-state">
-               <i class="fas fa-calendar"></i>
-               <p>Takvim yükleniyor...</p>
-            </div>
-           </div>
-       </div>
-
-      <div class="card">
-         <div class="card-header">
-            <h2><i class="fas fa-file-csv"></i> CSV Veri Yönetimi</h2>
-            <div class="csv-controls">
-               <select id="csv-file-select">
-                  <option value="reservations">reservations.csv</option>
-                  <option value="tables">tables.csv</option>
-                  <option value="weekly_menus">weekly_menus.csv</option>
-                  <option value="weekly_occupancy">weekly_occupancy.csv</option>
-               </select>
-               <button class="refresh-btn" onclick="loadCsv()">
-                  <i class="fas fa-download"></i> Yükle
-               </button>
-               <button class="refresh-btn" onclick="saveCsv()">
-                  <i class="fas fa-save"></i> Kaydet
-               </button>
-            </div>
-           </div>
-         <textarea id="csv-editor" class="csv-editor" placeholder="CSV içerik burada görünecek..."></textarea>
-         <div style="margin-top: 10px; color: #7f8c8d; font-size: 0.9rem;">
-            💡 Not: Kaydettiğinizde ilgili dosya anında yenilenir ve bot tarafından kullanılmaya başlar.
-           </div>
-           </div>
-       </div>
 
 <script>
    // Load stats
@@ -670,76 +544,6 @@
       }
    }
 
-   // Load hourly calendar
-   async function loadHourlyCalendar() {
-      try {
-         const dateInput = document.getElementById('calendar-date');
-         const selectedDate = dateInput.value || new Date().toISOString().split('T')[0];
-         
-         const res = await fetch('/api/reservations');
-         const reservations = await res.json();
-         
-         const dayReservations = reservations.filter(r => r.date === selectedDate);
-         
-         const hours = [];
-         for (let h = 12; h <= 23; h++) {
-            hours.push(h.toString().padStart(2, '0') + ':00');
-         }
-
-         const container = document.getElementById('hourly-calendar');
-         
-         container.innerHTML = `
-            <div class="calendar-grid">
-               <div class="calendar-header">Saat</div>
-               ${Array.from({length: 20}, (_, i) => 
-                  `<div class="calendar-header">Masa ${i+1}</div>`
-               ).join('')}
-               
-               ${hours.map(hour => {
-                  const hourReservations = dayReservations.filter(r => r.time === hour);
-                  const reservedTables = hourReservations.map(r => parseInt(r.table_number));
-                  
-                  return `
-                     <div class="calendar-header">${hour}</div>
-                     ${Array.from({length: 20}, (_, i) => {
-                        const tableNum = i + 1;
-                        const isReserved = reservedTables.includes(tableNum);
-                        const reservation = hourReservations.find(r => parseInt(r.table_number) === tableNum);
-                        
-                        return `
-                           <div class="calendar-cell ${isReserved ? 'reserved' : 'available'}" 
-                                title="${isReserved ? 
-                                   `Rezerve: ${reservation.customer_name} (${reservation.party_size} kişi)` : 
-                                   'Müsait'
-                                }"
-                                onclick="${isReserved ? '' : `selectTable('${selectedDate}', '${hour}', ${tableNum})`}">
-                              ${isReserved ? '❌' : '✅'}
-                           </div>
-                        `;
-                     }).join('')}
-                  `;
-               }).join('')}
-            </div>
-         `;
-
-      } catch (err) {
-         console.error('Hourly calendar error:', err);
-         const container = document.getElementById('hourly-calendar');
-         container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Takvim yüklenemedi</p></div>';
-      }
-   }
-
-   function selectTable(date, time, tableNumber) {
-      const customerName = prompt('Müşteri adı:');
-      const partySize = prompt('Kişi sayısı:');
-      const specialRequests = prompt('Özel istekler (boş bırakabilirsiniz):') || 'Yok';
-      
-      if (customerName && partySize) {
-         alert(`Rezervasyon: ${date} ${time} - Masa ${tableNumber} - ${customerName} (${partySize} kişi)`);
-         loadHourlyCalendar();
-      }
-   }
-
    // Cancel reservation
    async function cancelReservation(date, time, tableNumber) {
       if (!confirm(`${date} ${time} tarihli Masa ${tableNumber} rezervasyonunu iptal etmek istediğinize emin misiniz?`)) {
@@ -757,7 +561,6 @@
          if (result.success) {
             alert('✅ Rezervasyon iptal edildi!');
             loadReservations();
-            loadHourlyCalendar();
             loadStats();
          } else {
             alert('❌ Hata: ' + result.message);
@@ -767,43 +570,11 @@
       }
    }
 
-   // CSV Editor functions
-   async function loadCsv() {
-      const file = document.getElementById('csv-file-select').value;
-      const res = await fetch(`/api/csv?file=${encodeURIComponent(file)}`);
-      if (!res.ok) {
-         document.getElementById('csv-editor').value = 'Dosya okunamadı';
-         return;
-      }
-      const text = await res.text();
-      document.getElementById('csv-editor').value = text;
-   }
-
-   async function saveCsv() {
-      const file = document.getElementById('csv-file-select').value;
-      const content = document.getElementById('csv-editor').value;
-      const res = await fetch(`/api/csv?file=${encodeURIComponent(file)}`, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ content })
-      });
-      if (res.ok) {
-         alert('✅ Kaydedildi');
-         if (file === 'reservations') { 
-            loadReservations(); 
-            loadHourlyCalendar(); 
-         }
-      } else {
-         alert('❌ Kaydedilemedi');
-      }
-   }
-
    // Auto refresh every 5 seconds
    setInterval(() => {
       loadStats();
       loadMessages();
       loadReservations();
-      loadHourlyCalendar();
    }, 5000);
 
    // Initial load
@@ -811,13 +582,10 @@
       loadStats();
       loadMessages();
       loadReservations();
-      loadHourlyCalendar();
-      loadCsv();
       
       // Set today's date as default
       const today = new Date().toISOString().split('T')[0];
       document.getElementById('date-filter').value = today;
-      document.getElementById('calendar-date').value = today;
    };
 </script>
 

@@ -16,7 +16,7 @@
 - **Haftalık döngü**: 7 günlük menü rotasyonu
 
 ### 🎯 AI Asistan
-- **Doğal konuşma**: Ollama gemma3:12b modeli
+- **Doğal konuşma**: Ollama gemma3:4b modeli
 - **Çeşitli cevaplar**: Her seferinde farklı yanıtlar
 - **YZT Döner odaklı**: Restoran markası vurgusu
 - **Samimi ton**: Sıcak ve kibar konuşma
@@ -31,7 +31,7 @@
 
 ### Gereksinimler
 - Node.js 18+
-- Ollama (gemma3:12b modeli)
+- Ollama (gemma3:4b modeli)
 - Telegram Bot Token
 
 ### 1. Projeyi Klonlayın
@@ -53,8 +53,8 @@ curl -fsSL https://ollama.ai/install.sh | sh
 # Ollama servisini başlatın
 ollama serve
 
-# Gemma3:12b modelini indirin
-ollama pull gemma3:12b
+# Gemma3:4b modelini indirin
+ollama pull gemma3:4b
 ```
 
 ### 4. Çevre Değişkenlerini Ayarlayın
@@ -80,24 +80,6 @@ Proje ana dizininde `.env` dosyası oluşturun:
 touch .env
 ```
 
-#### 4.3 .env Dosyası İçeriği
-`.env` dosyasına şu içeriği ekleyin:
-
-```env
-# Telegram Bot Token (BotFather'dan aldığınız token)
-TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
-
-# Ollama Ayarları
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=gemma3:1b
-
-# Veri Dizini
-DATA_DIR=./data
-
-# Port (Opsiyonel)
-PORT=3000
-```
-
 **⚠️ Önemli:** 
 - `TELEGRAM_BOT_TOKEN` kısmına BotFather'dan aldığınız gerçek token'ı yazın
 - `.env` dosyasını asla GitHub'a yüklemeyin (güvenlik riski)
@@ -112,7 +94,7 @@ TELEGRAM_BOT_TOKEN=your_bot_token_here
 
 # Ollama Ayarları
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=gemma3:1b
+OLLAMA_MODEL=gemma3:4b
 
 # Veri Dizini
 DATA_DIR=./data

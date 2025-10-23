@@ -83,31 +83,140 @@ function getUserMemory(userId) {
     return userMemories.get(userId);
 }
 
-// Helper function to extract date from message
-function extractDate(message) {
+// Helper function to parse date from natural language
+function parseDateNatural(input) {
+    const text = input.toLowerCase().trim();
+    const today = new Date();
+    
+    // Bugün, yarın patterns
+    if (text === 'bugün') {
+        return today.toISOString().split('T')[0];
+    }
+    if (text === 'yarın') {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return tomorrow.toISOString().split('T')[0];
+    }
+    
+    // Türkçe aylar
+    const months = {
+        'ocak': 1, 'şubat': 2, 'mart': 3, 'nisan': 4, 'mayıs': 5, 'haziran': 6,
+        'temmuz': 7, 'ağustos': 8, 'eylül': 9, 'ekim': 10, 'kasım': 11, 'aralık': 12
+    };
+    
+    // "21 aralık", "7 haziran 2025" gibi
+    for (const [monthName, monthNum] of Object.entries(months)) {
+        if (text.includes(monthName)) {
+            const parts = text.split(/\s+/);
+            const day = parseInt(parts[0]);
+            let year = 2025;
+            
+            // Yıl varsa al
+            for (const part of parts) {
+                if (/20\d{2}/.test(part)) {
+                    year = parseInt(part);
+                }
+            }
+            
+            if (!isNaN(day) && day >= 1 && day <= 31) {
+                return `${year}-${String(monthNum).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+        }
+    }
+    
+    // Standart formatlar: YYYY-MM-DD, DD/MM/YYYY, DD.MM.YYYY
     const dateRegex = /(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})|(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})/;
-    const match = message.match(dateRegex);
+    const match = text.match(dateRegex);
     if (match) {
         let dateStr = match[0];
-        // Normalize date format to YYYY-MM-DD
         const parts = dateStr.split(/[\/\-\.]/);
         if (parts[0].length === 4) {
             return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
         } else {
-            return `2024-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            const year = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+            return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
         }
     }
+    
     return null;
 }
 
-// Helper function to extract time from message
-function extractTime(message) {
-    const timeRegex = /(\d{1,2}):(\d{2})/;
-    const match = message.match(timeRegex);
-    if (match) {
-        return `${match[1].padStart(2, '0')}:${match[2]}`;
+// Helper function to extract date from message (legacy)
+function extractDate(message) {
+    return parseDateNatural(message);
+}
+
+// Helper function to parse time from natural language
+function parseTimeNatural(input) {
+    const text = input.toLowerCase().trim();
+    
+    // Saat isimleri
+    const timeNames = {
+        'öğlen': '12:00',
+        'akşam': '19:00',
+        'akşam yemeği': '19:00',
+        'öğle yemeği': '12:00'
+    };
+    
+    for (const [name, time] of Object.entries(timeNames)) {
+        if (text.includes(name)) {
+            return time;
+        }
     }
+    
+    // "akşam 8", "akşam sekiz"
+    if (text.includes('akşam')) {
+        const hourMatch = text.match(/(\d{1,2})/);
+        if (hourMatch) {
+            const hour = parseInt(hourMatch[1]);
+            if (hour >= 1 && hour <= 12) {
+                return `${hour + 12}:00`;
+            }
+        }
+    }
+    
+    // Yazılı sayılar
+    const numberWords = {
+        'bir': 1, 'iki': 2, 'üç': 3, 'dört': 4, 'beş': 5, 'altı': 6,
+        'yedi': 7, 'sekiz': 8, 'dokuz': 9, 'on': 10, 'onbir': 11, 'oniki': 12,
+        'onüç': 13, 'ondört': 14, 'onbeş': 15, 'onaltı': 16, 'onyedi': 17,
+        'onsekiz': 18, 'ondokuz': 19, 'yirmi': 20, 'yirmibirler': 21, 'yirmiiki': 22, 'yirmiüç': 23
+    };
+    
+    for (const [word, hour] of Object.entries(numberWords)) {
+        if (text.includes(word)) {
+            return `${String(hour).padStart(2, '0')}:00`;
+        }
+    }
+    
+    // Standart formatlar: HH:MM, HH.MM, HH,MM
+    const timeRegex = /(\d{1,2})[:\.،,](\d{2})/;
+    const match = text.match(timeRegex);
+    if (match) {
+        const hour = parseInt(match[1]);
+        const minute = parseInt(match[2]);
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+            return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        }
+    }
+    
+    // Sadece saat: "20", "8"
+    const hourOnlyMatch = text.match(/^(\d{1,2})$/);
+    if (hourOnlyMatch) {
+        const hour = parseInt(hourOnlyMatch[1]);
+        if (hour >= 12 && hour <= 23) {
+            return `${String(hour).padStart(2, '0')}:00`;
+        } else if (hour >= 1 && hour <= 11) {
+            return `${String(hour + 12).padStart(2, '0')}:00`;
+        }
+    }
+    
     return null;
+}
+
+// Helper function to extract time from message (legacy)
+function extractTime(message) {
+    return parseTimeNatural(message);
 }
 
 // Helper function to extract party size from message
@@ -142,43 +251,37 @@ function isMenuRequest(message) {
 // Restaurant reservation agent prompt
 const chatPrompt = ChatPromptTemplate.fromMessages([
     SystemMessagePromptTemplate.fromTemplate(
-        `Sen YZT Döner restoranının samimi ve kibar rezervasyon asistanısın. Müşterilerle dostça konuş, onları sıcak karşıla.
+        `Sen YZT Döner rezervasyon asistanısın. Samimi ve profesyonel konuş.yzt döner restorantı hakkında ve rezervasyon işlemleri dışında bişi sorarsa cevap vermeyeceğini bilmediğini söyle.
 
-Kişiliğin:
-- Samimi, kibar ve yardımsever
-- YZT Döner'ın lezzetli yemeklerini öven
-- Müşteri memnuniyetini önceleyen
-- Doğal ve sıcak konuşan
-- Sabırlı ve anlayışlı
+🎯 REZERVASYON BAŞLARKEN:
+İlk mesajda TEK SEFERDE SOR:
+"Merhaba! YZT Döner'e hoş geldin 🍽️
 
-Restoran Bilgileri (YZT Döner):
-- 20 masa var (her masa 4 kişilik)
-- Çalışma saatleri: 12:00-23:00
-- Özel döner çeşitleri ve taze malzemeler
-- Sıcak ve samimi atmosfer
-- Aile işletmesi, geleneksel lezzetler
+Rezervasyon için şu bilgileri ver:
+• Adın soyadın
+• Kaç kişi (1-4)
+• Hangi gün (bugün/yarın/tarih)
+• Saat (12:00-23:00)
 
-Konuşma tarzın:
-- "Hoş geldiniz! YZT Döner'a nasıl yardımcı olabilirim?"
-- "Tabii ki, hemen yardımcı olayım"
-- "Harika bir seçim! Bu lezzetli yemeğimizi çok seveceksiniz"
-- "Başka bir şey yardımcı olabileceğim var mı?"
-- "Afiyet olsun! YZT Döner'da keyifli vakit geçirmenizi dilerim"
+Örnek: Ahmet Yılmaz, 3 kişi, yarın, 20:00"
 
-Görevlerin:
-- Rezervasyon almak ve yönetmek
-- Menü hakkında bilgi vermek
-- YZT Döner'ın özel lezzetlerini tanıtmak
-- Müşteri sorularını yanıtlamak
+💬 CEVAPLARI İŞLE:
+- Eksik bilgi varsa → sadece eksik olanı sor
+- Tüm bilgi varsa → müsait masaları göster
+- Masa seçince → özet göster, onayla
 
-Davranış kuralları:
-- Her zaman samimi ve kibar ol
-- YZT Döner'ın özel lezzetlerini öv
-- Müşteri memnuniyetini öncele
-- Doğal ve sıcak konuş
-- Türkçe konuş
+🗣️ ÖRNEKLER:
+- "Ahmet, 3 kişi, yarın, 20:00" → ✅ "Müsait masalar: 1,5,10. Hangisi?"
+- "Ahmet, 3 kişi" → ❌ "Hangi gün ve saat?"
+- "yarın 20:00" → ❌ "Adın ve kaç kişi?"
 
-Eğer müşteri daha önce konuştuysan, o konuşmaları hatırla ve devam et.`
+⚠️ KURALLAR:
+- İLK MESAJ: hepsini birden iste
+- Kısa konuş
+- Parantez YOK
+- Döner/sipariş sorma
+
+✅ TEK SEFERDE BİLGİ AL!`
     ),
     new MessagesPlaceholder("history"),
     HumanMessagePromptTemplate.fromTemplate("{input}")
@@ -211,34 +314,274 @@ bot.on('message', async (msg) => {
                                    messageText.startsWith('/cancel') || 
                                    messageText.startsWith('/myreservations');
 
-        // Eğer kullanıcı rezervasyon sürecindeyse, sadece rezervasyon adımlarını işle
+        // Kullanıcının rezervasyon durumunu al
         const userReservationState = userReservationStates.get(userId) || {};
+        
+        // Rezervasyon sürecindeyse, LLM ile doğal işle
         if (userReservationState.step) {
-            // Kullanıcı rezervasyon sürecinde, AI yanıt verme
+            // Rezervasyon durumu bilgisini oluştur
+            let contextInfo = `\n\n[REZERVASYON DURUMU]\nAşama: ${userReservationState.step}`;
+            
+            if (userReservationState.step === 'all_info') {
+                contextInfo += '\nŞimdi: Tüm bilgileri (isim, kişi sayısı, tarih, saat) parse et';
+            } else if (userReservationState.step === 'name') {
+                contextInfo += '\nŞimdi: İsim-soyisim bekle';
+            } else if (userReservationState.step === 'partySize') {
+                contextInfo += `\nİsim: ${userReservationState.name}`;
+                contextInfo += '\nŞimdi: Kaç kişilik masa istediğini sor (1-4 kişi)';
+            } else if (userReservationState.step === 'date') {
+                contextInfo += `\nİsim: ${userReservationState.name}, Kişi: ${userReservationState.partySize}`;
+                contextInfo += '\nŞimdi: Hangi tarihte istediğini sor. "bugün, yarın, 21 aralık" gibi doğal ifadeleri kabul et';
+            } else if (userReservationState.step === 'time') {
+                contextInfo += `\nİsim: ${userReservationState.name}, Kişi: ${userReservationState.partySize}, Tarih: ${userReservationState.date}`;
+                contextInfo += '\nŞimdi: Hangi saatte istediğini sor. "20:30, 20.30, akşam 8" gibi doğal ifadeleri kabul et';
+            } else if (userReservationState.step === 'table') {
+                contextInfo += `\nİsim: ${userReservationState.name}, Kişi: ${userReservationState.partySize}, Tarih: ${userReservationState.date}, Saat: ${userReservationState.time}`;
+                if (userReservationState.availableTables) {
+                    const tableNums = userReservationState.availableTables.map(t => t.number).join(', ');
+                    contextInfo += `\nMüsait masalar: ${tableNums}`;
+                    contextInfo += '\nŞimdi: Bir masa numarası seçmesini bekle veya "hepsi olur" derse ilk masayı ata';
+                }
+            } else if (userReservationState.step === 'confirm') {
+                contextInfo += `\nİsim: ${userReservationState.name}, Kişi: ${userReservationState.partySize}, Tarih: ${userReservationState.date}, Saat: ${userReservationState.time}, Masa: ${userReservationState.table}`;
+                contextInfo += '\nŞimdi: Onay bekle (evet/hayır)';
+            }
+            
+            contextInfo += `\n\n[USER MESSAGE]: ${messageText}`;
+            
+            // LLM ile işle
+            const memory = getUserMemory(userId);
+            const chain = new ConversationChain({
+                llm: model,
+                memory: memory,
+                prompt: chatPrompt
+            });
+            
+            const response = await chain.call({
+                input: messageText + contextInfo
+            });
+            
+            // Yanıttan bilgileri çıkar ve rezervasyon durumunu güncelle
+            const responseText = response.response;
+            
+            // Tek seferde tüm bilgileri parse et
+            if (userReservationState.step === 'all_info') {
+                // İsim parse et (ilk 1-2 kelime)
+                const words = messageText.trim().split(/[\s,]+/);
+                let name = '';
+                let partySize = null;
+                let dateStr = '';
+                let timeStr = '';
+                
+                // İsim bul (sayı olmayanlar)
+                for (let i = 0; i < words.length && i < 3; i++) {
+                    if (isNaN(parseInt(words[i])) && !words[i].includes(':') && !words[i].includes('.')) {
+                        name += (name ? ' ' : '') + words[i];
+                    } else {
+                        break;
+                    }
+                }
+                
+                // Kişi sayısı bul
+                for (const word of words) {
+                    const num = parseInt(word);
+                    if (!isNaN(num) && num >= 1 && num <= 10) {
+                        partySize = num;
+                        break;
+                    }
+                }
+                
+                // Tarih ve saat parse et
+                const text = messageText.toLowerCase();
+                if (text.includes('bugün')) dateStr = 'bugün';
+                else if (text.includes('yarın')) dateStr = 'yarın';
+                else {
+                    // Tarih formatı ara (gün ay)
+                    const dateMatch = text.match(/(\d{1,2})\s*(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)/);
+                    if (dateMatch) dateStr = dateMatch[0];
+                }
+                
+                // Saat parse et
+                const timeMatch = text.match(/(\d{1,2})[:.\/]?(\d{2})?/);
+                if (timeMatch) timeStr = timeMatch[0];
+                
+                // Eksik bilgi kontrolü
+                const missing = [];
+                if (!name) missing.push('Adın soyadın');
+                if (!partySize) missing.push('Kaç kişi');
+                if (!dateStr) missing.push('Hangi gün');
+                if (!timeStr) missing.push('Saat');
+                
+                if (missing.length > 0) {
+                    await bot.sendMessage(chatId, `Eksik bilgiler: ${missing.join(', ')}\n\nTekrar yaz: Örnek "Ahmet Yılmaz, 3 kişi, yarın, 20:00"`);
+                    return;
+                }
+                
+                // Bilgileri kaydet ve işle
+                userReservationState.name = name;
+                userReservationState.partySize = partySize > 4 ? 4 : partySize;
+                
+                const parsedDate = parseDateNatural(dateStr);
+                const parsedTime = parseTimeNatural(timeStr);
+                
+                if (parsedDate && parsedTime) {
+                    userReservationState.date = parsedDate;
+                    userReservationState.time = parsedTime;
+                    
+                    // Müsait masaları kontrol et
+                    const availableTables = restaurantManager.getAvailableTables(parsedDate, parsedTime, userReservationState.partySize);
+                    
+                    if (availableTables.available && availableTables.tables.length > 0) {
+                        let tableList = availableTables.tables.map(t => t.number).join(', ');
+                        await bot.sendMessage(chatId, `✅ ${name}, ${partySize} kişi, ${parsedDate} ${parsedTime}\n\n📋 Müsait masalar: ${tableList}\n\nHangi masayı istersin?`);
+                        userReservationState.availableTables = availableTables.tables;
+                        userReservationState.step = 'table';
+                        userReservationStates.set(userId, userReservationState);
+                        return;
+                    } else {
+                        await bot.sendMessage(chatId, `❌ ${parsedDate} ${parsedTime}'de müsait masa yok. Başka tarih/saat dene.`);
+                        userReservationStates.delete(userId);
+                        return;
+                    }
+                } else {
+                    await bot.sendMessage(chatId, `Tarih/saat anlaşılamadı. Tekrar yaz: "Ahmet, 3 kişi, yarın, 20:00"`);
+                    return;
+                }
+            }
+            // İsim aşaması
+            else if (userReservationState.step === 'name') {
+                userReservationState.name = messageText.trim();
+                userReservationState.step = 'partySize';
+                userReservationStates.set(userId, userReservationState);
+            }
+            // Kişi sayısı aşaması
+            else if (userReservationState.step === 'partySize') {
+                const partySize = parseInt(messageText.trim());
+                if (!isNaN(partySize) && partySize > 0 && partySize <= 4) {
+                    userReservationState.partySize = partySize;
+                    userReservationState.step = 'date';
+                    userReservationStates.set(userId, userReservationState);
+                } else if (!isNaN(partySize) && partySize > 4) {
+                    // 4'ten fazla kişi
+                    await bot.sendMessage(chatId, `Masalarımız 4 kişilik. ${Math.ceil(partySize / 4)} masa rezervasyonu yapabiliriz. Şimdilik 4 kişi için devam edelim mi?`);
+                    return;
+                }
+            }
+            // Tarih aşaması - Doğal dil desteği
+            else if (userReservationState.step === 'date') {
+                const parsedDate = parseDateNatural(messageText.trim());
+                if (parsedDate) {
+                    userReservationState.date = parsedDate;
+                    userReservationState.step = 'time';
+                    userReservationStates.set(userId, userReservationState);
+                }
+            }
+            // Saat aşaması - Doğal dil desteği
+            else if (userReservationState.step === 'time') {
+                const parsedTime = parseTimeNatural(messageText.trim());
+                if (parsedTime) {
+                    userReservationState.time = parsedTime;
+                    
+                    // Müsait masaları kontrol et
+                    const availableTables = restaurantManager.getAvailableTables(userReservationState.date, userReservationState.time, userReservationState.partySize);
+                    
+                    if (availableTables.available && availableTables.tables.length > 0) {
+                        // Müsait masaları göster
+                        let tableList = availableTables.tables.map(t => t.number).join(', ');
+                        await bot.sendMessage(chatId, responseText + `\n\n📋 Müsait masalar: ${tableList}\n\nBir masa numarası seçin veya "hepsi olur" deyin.`);
+                        userReservationState.availableTables = availableTables.tables;
+                        userReservationState.step = 'table';
+                        userReservationStates.set(userId, userReservationState);
+                        return;
+                    } else {
+                        await bot.sendMessage(chatId, responseText + '\n\n❌ Bu tarih ve saatte müsait masa yok. Başka bir tarih veya saat deneyin.');
+                        userReservationState.step = 'date';
+                        userReservationStates.set(userId, userReservationState);
+                        return;
+                    }
+                }
+            }
+            // Masa seçimi aşaması
+            else if (userReservationState.step === 'table') {
+                const tableNum = parseInt(messageText.trim());
+                
+                // Masa numarası geçerli mi ve müsait mi kontrol et
+                if (!isNaN(tableNum)) {
+                    if (tableNum < 1 || tableNum > 20) {
+                        await bot.sendMessage(chatId, `20'ye kadar masa var (1-20). Hangi masayı istersin?`);
+                        return;
+                    }
+                    
+                    if (userReservationState.availableTables && 
+                        userReservationState.availableTables.some(t => t.number === tableNum)) {
+                        userReservationState.table = tableNum;
+                        userReservationState.step = 'confirm';
+                        userReservationStates.set(userId, userReservationState);
+                        
+                        // Özet göster
+                        await bot.sendMessage(chatId, `📋 Özet:\n👤 ${userReservationState.name}\n👥 ${userReservationState.partySize} kişi\n📅 ${userReservationState.date}\n🕐 ${userReservationState.time}\n🪑 Masa ${userReservationState.table}\n\nOnaylıyor musun? (evet/hayır)`);
+                        return;
+                    } else {
+                        // Masa müsait değil
+                        const availableList = userReservationState.availableTables.map(t => t.number).join(', ');
+                        await bot.sendMessage(chatId, `Masa ${tableNum} müsait değil. Müsait masalar: ${availableList}\n\nHangisini istersin?`);
+                        return;
+                    }
+                } else if (messageText.toLowerCase().includes('hepsi') || messageText.toLowerCase().includes('farketmez') || messageText.toLowerCase().includes('farkmez')) {
+                    // İlk müsait masayı seç
+                    userReservationState.table = userReservationState.availableTables[0].number;
+                    userReservationState.step = 'confirm';
+                    userReservationStates.set(userId, userReservationState);
+                    
+                    await bot.sendMessage(chatId, `📋 Özet:\n👤 ${userReservationState.name}\n👥 ${userReservationState.partySize} kişi\n📅 ${userReservationState.date}\n🕐 ${userReservationState.time}\n🪑 Masa ${userReservationState.table}\n\nOnaylıyor musun? (evet/hayır)`);
+                    return;
+                }
+            }
+            // Onay aşaması
+            else if (userReservationState.step === 'confirm') {
+                if (messageText.toLowerCase().includes('evet') || messageText.toLowerCase().includes('onayla')) {
+                    // Rezervasyonu yap
+                    const result = restaurantManager.makeReservation(
+                        userReservationState.date,
+                        userReservationState.time,
+                        userReservationState.table,
+                        userReservationState.name,
+                        userReservationState.partySize,
+                        "Telegram rezervasyon",
+                        userId
+                    );
+                    
+                    if (result.success) {
+                        await bot.sendMessage(chatId, `${responseText}\n\n✅ Rezervasyonunuz kaydedildi!\n\n/myreservations ile görebilir, /cancel ile iptal edebilirsiniz.`);
+                    } else {
+                        await bot.sendMessage(chatId, `${responseText}\n\n❌ Hata: ${result.message}`);
+                    }
+                    userReservationStates.delete(userId);
+                    return;
+                } else if (messageText.toLowerCase().includes('hayır') || messageText.toLowerCase().includes('iptal')) {
+                    await bot.sendMessage(chatId, `${responseText}\n\n❌ Rezervasyon iptal edildi.`);
+                    userReservationStates.delete(userId);
+                    return;
+                }
+            }
+            
+            await bot.sendMessage(chatId, responseText);
+            
+            // Log outgoing message
+            messageLogs.push({
+                timestamp: new Date().toISOString(),
+                type: 'outgoing',
+                userId: userId,
+                userName: msg.from.first_name + (msg.from.last_name ? ' ' + msg.from.last_name : ''),
+                chatId: chatId,
+                message: responseText
+            });
+            if (messageLogs.length > 100) messageLogs.shift();
             return;
         }
 
         if (!isReservationRelated) {
-            // İlk mesaj ise hoş geldin mesajı gönder
-            if (messageText.toLowerCase().includes('/start') || 
-                messageText.toLowerCase().includes('merhaba') || 
-                messageText.toLowerCase().includes('selam') ||
-                messageText.toLowerCase().includes('hi') ||
-                messageText.toLowerCase().includes('hello')) {
-                
-                const welcomeMessages = [
-                    `🍽️ Merhaba! YZT Döner'a hoş geldiniz! 🥙\n\nBen YZT Döner'ın rezervasyon asistanıyım. Size nasıl yardımcı olabilirim?\n\n📋 Yapabileceklerim:\n• Rezervasyon yapmak için "rezervasyon" yazın\n• Menü görmek için "menü" yazın\n• Rezervasyonlarınızı görmek için /myreservations\n• Rezervasyon iptal etmek için /cancel`,
-                    `🥙 Hoş geldiniz! YZT Döner'da sizi ağırlamak için buradayım! 🍽️\n\nBen rezervasyon asistanınızım. Size nasıl yardımcı olabilirim?\n\n📋 Hizmetlerim:\n• Rezervasyon yapmak için "rezervasyon" yazın\n• Menü görmek için "menü" yazın\n• Rezervasyonlarınızı görmek için /myreservations\n• Rezervasyon iptal etmek için /cancel`,
-                    `🍽️ Merhaba! YZT Döner'ın lezzetli yemeklerini tatmak için buradayım! 🥙\n\nBen rezervasyon asistanınızım. Size nasıl yardımcı olabilirim?\n\n📋 Yapabileceklerim:\n• Rezervasyon yapmak için "rezervasyon" yazın\n• Menü görmek için "menü" yazın\n• Rezervasyonlarınızı görmek için /myreservations\n• Rezervasyon iptal etmek için /cancel`,
-                    `🥙 Hoş geldiniz! YZT Döner'da keyifli vakit geçirmeniz için buradayım! 🍽️\n\nBen rezervasyon asistanınızım. Size nasıl yardımcı olabilirim?\n\n📋 Hizmetlerim:\n• Rezervasyon yapmak için "rezervasyon" yazın\n• Menü görmek için "menü" yazın\n• Rezervasyonlarınızı görmek için /myreservations\n• Rezervasyon iptal etmek için /cancel`,
-                    `🍽️ Merhaba! YZT Döner'da sıcak karşılama sizi bekliyor! 🥙\n\nBen rezervasyon asistanınızım. Size nasıl yardımcı olabilirim?\n\n📋 Yapabileceklerim:\n• Rezervasyon yapmak için "rezervasyon" yazın\n• Menü görmek için "menü" yazın\n• Rezervasyonlarınızı görmek için /myreservations\n• Rezervasyon iptal etmek için /cancel`
-                ];
-                
-                const randomMessage = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-                await bot.sendMessage(chatId, randomMessage);
-                return;
-            } else {
-                // Diğer mesajlar için AI ile çeşitli cevaplar
+            // Konu dışı mesajlar için LLM kullan - samimi ve esprili olsun
                 try {
                     const memory = getUserMemory(userId);
                     const chain = new ConversationChain({
@@ -266,18 +609,9 @@ bot.on('message', async (msg) => {
                     
             } catch (error) {
                     console.error('AI response error:', error);
-                    // Fallback mesajı
-                    const fallbackMessages = [
-                        `🍽️ YZT Döner'da size nasıl yardımcı olabilirim?\n\n📋 Hizmetlerim:\n• Rezervasyon yapmak için "rezervasyon" yazın\n• Menü görmek için "menü" yazın\n• Rezervasyonlarınızı görmek için /myreservations`,
-                        `🥙 YZT Döner'ın lezzetli yemeklerini tatmak için buradayım!\n\n📋 Yapabileceklerim:\n• Rezervasyon yapmak için "rezervasyon" yazın\n• Menü görmek için "menü" yazın\n• Rezervasyonlarınızı görmek için /myreservations`,
-                        `🍽️ YZT Döner'da keyifli vakit geçirmeniz için buradayım!\n\n📋 Hizmetlerim:\n• Rezervasyon yapmak için "rezervasyon" yazın\n• Menü görmek için "menü" yazın\n• Rezervasyonlarınızı görmek için /myreservations`
-                    ];
-                    
-                    const randomMessage = fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)];
-                    await bot.sendMessage(chatId, randomMessage);
-                }
-                return;
+                await bot.sendMessage(chatId, 'Merhaba! Rezervasyon yapmak ister misin?');
             }
+            return;
         }
 
         // Komutlar: /cancel YYYY-MM-DD HH:MM TABLE, /myreservations
@@ -321,7 +655,7 @@ bot.on('message', async (msg) => {
             }
         }
 
-        // Rezervasyon isteği kontrolü - Adım adım bilgi toplama
+        // Rezervasyon isteği kontrolü - LLM ile doğal başlat
         if (isReservationRequest(messageText)) {
             // Kullanıcının mevcut rezervasyon durumunu kontrol et
             const userReservationState = userReservationStates.get(userId) || {};
@@ -329,185 +663,38 @@ bot.on('message', async (msg) => {
             // Eğer kullanıcı zaten rezervasyon sürecindeyse ve "rezervasyon" yazarsa, mevcut durumu sıfırla
             if (userReservationState.step && messageText.toLowerCase().trim() === 'rezervasyon') {
                 userReservationStates.delete(userId);
-                await bot.sendMessage(chatId, '🔄 Rezervasyon süreci sıfırlandı. Yeni rezervasyon yapmak için bilgilerinizi alalım!');
+                await bot.sendMessage(chatId, '🔄 Tamam, yeni rezervasyon yapalım!');
             }
             
             if (!userReservationState.step) {
-                // İlk adım: İsim ve soyisim
-                userReservationState.step = 'name';
+                // İlk adım: Tek seferde tüm bilgileri iste
+                userReservationState.step = 'all_info';
                 userReservationStates.set(userId, userReservationState);
                 
-                // Farklı karşılama mesajları
-                const welcomeMessages = [
-                    `🍽️ Merhaba! YZT Döner'da rezervasyon yapmak için çok mutluyum!\n\n👤 Lütfen adınızı ve soyadınızı yazın:\n(Örnek: Ahmet Yılmaz)`,
-                    `🥙 Hoş geldiniz! YZT Döner'da sizi ağırlamak için sabırsızlanıyorum!\n\n👤 Adınızı ve soyadınızı öğrenebilir miyim?\n(Örnek: Ahmet Yılmaz)`,
-                    `🍽️ YZT Döner'da rezervasyon yapmak harika bir seçim!\n\n👤 Lütfen adınızı ve soyadınızı belirtin:\n(Örnek: Ahmet Yılmaz)`,
-                    `🥙 Merhaba! YZT Döner'ın lezzetli yemeklerini tatmak için rezervasyon yapıyoruz!\n\n👤 Adınızı ve soyadınızı yazabilir misiniz?\n(Örnek: Ahmet Yılmaz)`,
-                    `🍽️ YZT Döner'da rezervasyon yapmak için buradayım!\n\n👤 Lütfen adınızı ve soyadınızı paylaşın:\n(Örnek: Ahmet Yılmaz)`
-                ];
+                // LLM ile hoş geldin ve tek seferde bilgi iste
+                const welcomeMessage = `Merhaba! YZT Döner'e hoş geldin 🍽️
+
+Rezervasyon için şu bilgileri ver:
+• Adın soyadın
+• Kaç kişi (1-4)
+• Hangi gün (bugün/yarın/tarih)
+• Saat (12:00-23:00)
+
+Örnek: Ahmet Yılmaz, 3 kişi, yarın, 20:00`;
                 
-                const randomMessage = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-                await bot.sendMessage(chatId, randomMessage);
-                return;
-            }
-            
-            if (userReservationState.step === 'name') {
-                // İsim soyisim alındı, masa seçimi
-                userReservationState.name = messageText.trim();
-                userReservationState.step = 'table';
-                userReservationStates.set(userId, userReservationState);
+                await bot.sendMessage(chatId, welcomeMessage);
                 
-                // Farklı isim onay mesajları
-                const nameConfirmMessages = [
-                    `✅ Harika ${userReservationState.name}! Sizi YZT Döner'da ağırlamak için sabırsızlanıyorum!\n\n🪑 Hangi masa numarasını tercih edersiniz? (1-20 arası)\n(Örnek: 5)`,
-                    `🥙 Mükemmel ${userReservationState.name}! YZT Döner'da sizi bekliyoruz!\n\n🪑 Hangi masa numarasını seçmek istersiniz? (1-20 arası)\n(Örnek: 5)`,
-                    `🍽️ Çok güzel ${userReservationState.name}! YZT Döner'ın lezzetli yemeklerini tadacaksınız!\n\n🪑 Tercih ettiğiniz masa numarası nedir? (1-20 arası)\n(Örnek: 5)`,
-                    `✅ Harika ${userReservationState.name}! YZT Döner'da keyifli vakit geçireceksiniz!\n\n🪑 Hangi masa numarasını tercih edersiniz? (1-20 arası)\n(Örnek: 5)`,
-                    `🥙 Süper ${userReservationState.name}! YZT Döner'da sizi ağırlamak için hazırız!\n\n🪑 Masa numaranızı seçin: (1-20 arası)\n(Örnek: 5)`
-                ];
+                // Log outgoing message
+                messageLogs.push({
+                    timestamp: new Date().toISOString(),
+                    type: 'outgoing',
+                    userId: userId,
+                    userName: msg.from.first_name + (msg.from.last_name ? ' ' + msg.from.last_name : ''),
+                    chatId: chatId,
+                    message: welcomeMessage
+                });
+                if (messageLogs.length > 100) messageLogs.shift();
                 
-                const randomMessage = nameConfirmMessages[Math.floor(Math.random() * nameConfirmMessages.length)];
-                await bot.sendMessage(chatId, randomMessage);
-                return;
-            }
-            
-            if (userReservationState.step === 'table') {
-                const tableNumber = parseInt(messageText.trim());
-                if (isNaN(tableNumber) || tableNumber < 1 || tableNumber > 20) {
-                    await bot.sendMessage(chatId, `❌ Lütfen 1-20 arası geçerli bir masa numarası girin.`);
-                    return;
-                }
-                
-                userReservationState.table = tableNumber;
-                userReservationState.step = 'time';
-                userReservationStates.set(userId, userReservationState);
-                
-                // Farklı masa onay mesajları
-                const tableConfirmMessages = [
-                    `✅ Mükemmel! Masa ${tableNumber} çok güzel bir seçim!\n\n🕐 Hangi saatte rezervasyon yapmak istiyorsunuz? (12:00-23:00 arası)\n(Örnek: 19:30)`,
-                    `🥙 Harika! Masa ${tableNumber} sizin için mükemmel!\n\n🕐 Tercih ettiğiniz saat nedir? (12:00-23:00 arası)\n(Örnek: 19:30)`,
-                    `🍽️ Süper! Masa ${tableNumber} çok güzel bir tercih!\n\n🕐 Hangi saatte rezervasyon yapmak istersiniz? (12:00-23:00 arası)\n(Örnek: 19:30)`,
-                    `✅ Çok güzel! Masa ${tableNumber} sizi bekliyor!\n\n🕐 Rezervasyon saatinizi belirtin: (12:00-23:00 arası)\n(Örnek: 19:30)`,
-                    `🥙 Mükemmel seçim! Masa ${tableNumber} çok şık!\n\n🕐 Hangi saatte gelmek istiyorsunuz? (12:00-23:00 arası)\n(Örnek: 19:30)`
-                ];
-                
-                const randomMessage = tableConfirmMessages[Math.floor(Math.random() * tableConfirmMessages.length)];
-                await bot.sendMessage(chatId, randomMessage);
-                return;
-            }
-            
-            if (userReservationState.step === 'time') {
-                const time = messageText.trim();
-                const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-                if (!timeRegex.test(time)) {
-                    await bot.sendMessage(chatId, `❌ Lütfen geçerli bir saat formatı girin (HH:MM)\n(Örnek: 19:30)`);
-                    return;
-                }
-                
-                userReservationState.time = time;
-                userReservationState.step = 'date';
-                userReservationStates.set(userId, userReservationState);
-                
-                // Farklı saat onay mesajları
-                const timeConfirmMessages = [
-                    `✅ Harika! ${time} saatinde YZT Döner'ın lezzetli yemeklerini tadacaksınız!\n\n📅 Hangi tarihte rezervasyon yapmak istiyorsunuz?\n(Format: YYYY-MM-DD, Örnek: 2025-10-25)`,
-                    `🥙 Mükemmel! ${time} saatinde YZT Döner'da harika vakit geçireceksiniz!\n\n📅 Rezervasyon tarihinizi belirtin:\n(Format: YYYY-MM-DD, Örnek: 2025-10-25)`,
-                    `🍽️ Süper! ${time} saatinde YZT Döner'ın özel lezzetlerini tadacaksınız!\n\n📅 Hangi tarihte rezervasyon yapmak istersiniz?\n(Format: YYYY-MM-DD, Örnek: 2025-10-25)`,
-                    `✅ Çok güzel! ${time} saatinde YZT Döner'da sizi bekliyoruz!\n\n📅 Tarih seçiminiz nedir?\n(Format: YYYY-MM-DD, Örnek: 2025-10-25)`,
-                    `🥙 Harika seçim! ${time} saatinde YZT Döner'ın lezzetli yemeklerini tadacaksınız!\n\n📅 Hangi tarihte rezervasyon yapmak istiyorsunuz?\n(Format: YYYY-MM-DD, Örnek: 2025-10-25)`
-                ];
-                
-                const randomMessage = timeConfirmMessages[Math.floor(Math.random() * timeConfirmMessages.length)];
-                await bot.sendMessage(chatId, randomMessage);
-                return;
-            }
-            
-            if (userReservationState.step === 'date') {
-                const date = messageText.trim();
-                const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-                if (!dateRegex.test(date)) {
-                    await bot.sendMessage(chatId, `❌ Lütfen geçerli bir tarih formatı girin (YYYY-MM-DD)\n(Örnek: 2025-10-25)`);
-                    return;
-                }
-                
-                // Tarih aralığı kontrolü
-                const reservationDate = new Date(date);
-                const today = new Date();
-                const maxDate = new Date('2025-12-31');
-                
-                if (reservationDate < today || reservationDate > maxDate) {
-                    await bot.sendMessage(chatId, `❌ Rezervasyonlar sadece bugünden itibaren 31 Aralık 2025'e kadar yapılabilir.`);
-                    return;
-                }
-                
-                userReservationState.date = date;
-                userReservationState.step = 'confirm';
-                userReservationStates.set(userId, userReservationState);
-                
-                // Masa müsaitlik kontrolü
-                const availableTables = restaurantManager.getAvailableTables(date, userReservationState.time);
-                const isTableAvailable = availableTables.success && availableTables.tables.includes(userReservationState.table);
-                
-                if (!isTableAvailable) {
-                    await bot.sendMessage(chatId, `❌ ${date} ${userReservationState.time} tarihinde Masa ${userReservationState.table} müsait değil.\n\nLütfen farklı bir masa, saat veya tarih seçin.`);
-                    userReservationState.step = 'table'; // Masa seçimine geri dön
-                    userReservationStates.set(userId, userReservationState);
-                    return;
-                }
-                
-                // Farklı özet mesajları
-                const summaryMessages = [
-                    `📋 Rezervasyon Özeti:\n\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${date}\n\n🍽️ YZT Döner'da harika bir deneyim yaşayacaksınız!\n\n✅ Bu rezervasyonu onaylamak için "EVET" yazın\n❌ İptal etmek için "HAYIR" yazın`,
-                    `📋 Rezervasyon Detayları:\n\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${date}\n\n🥙 YZT Döner'da lezzetli yemekler sizi bekliyor!\n\n✅ Onaylamak için "EVET" yazın\n❌ İptal etmek için "HAYIR" yazın`,
-                    `📋 Rezervasyon Bilgileri:\n\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${date}\n\n🍽️ YZT Döner'da keyifli vakit geçireceksiniz!\n\n✅ Onaylamak için "EVET" yazın\n❌ İptal etmek için "HAYIR" yazın`,
-                    `📋 Rezervasyon Özeti:\n\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${date}\n\n🥙 YZT Döner'ın özel lezzetlerini tadacaksınız!\n\n✅ Bu rezervasyonu onaylamak için "EVET" yazın\n❌ İptal etmek için "HAYIR" yazın`,
-                    `📋 Rezervasyon Detayları:\n\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${date}\n\n🍽️ YZT Döner'da sıcak karşılama sizi bekliyor!\n\n✅ Onaylamak için "EVET" yazın\n❌ İptal etmek için "HAYIR" yazın`
-                ];
-                
-                const randomMessage = summaryMessages[Math.floor(Math.random() * summaryMessages.length)];
-                await bot.sendMessage(chatId, randomMessage);
-                return;
-            }
-            
-            if (userReservationState.step === 'confirm') {
-                const response = messageText.trim().toLowerCase();
-                
-                if (response === 'evet' || response === 'yes' || response === 'onayla') {
-                    // Rezervasyonu yap
-                    const result = restaurantManager.makeReservation(
-                        userReservationState.date,
-                        userReservationState.time,
-                        userReservationState.table,
-                        userReservationState.name,
-                        4, // Varsayılan kişi sayısı
-                        "Telegram rezervasyon",
-                        userId // User ID'yi arka planda ekle
-                    );
-                    
-                    if (result.success) {
-                        // Farklı başarı mesajları
-                        const successMessages = [
-                            `🎉 Harika! Rezervasyonunuz başarıyla oluşturuldu!\n\n📋 Rezervasyon Detayları:\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${userReservationState.date}\n\n🍽️ YZT Döner'da sizi bekliyoruz! Afiyet olsun!\n\nRezervasyon iptal etmek için: /cancel ${userReservationState.date} ${userReservationState.time} ${userReservationState.table}\nRezervasyonlarınızı görmek için: /myreservations`,
-                            `🥙 Mükemmel! Rezervasyonunuz onaylandı!\n\n📋 Rezervasyon Bilgileri:\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${userReservationState.date}\n\n🍽️ YZT Döner'da lezzetli yemekler sizi bekliyor!\n\nRezervasyon iptal etmek için: /cancel ${userReservationState.date} ${userReservationState.time} ${userReservationState.table}\nRezervasyonlarınızı görmek için: /myreservations`,
-                            `✅ Süper! Rezervasyonunuz hazır!\n\n📋 Rezervasyon Detayları:\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${userReservationState.date}\n\n🥙 YZT Döner'da keyifli vakit geçireceksiniz!\n\nRezervasyon iptal etmek için: /cancel ${userReservationState.date} ${userReservationState.time} ${userReservationState.table}\nRezervasyonlarınızı görmek için: /myreservations`,
-                            `🎉 Çok güzel! Rezervasyonunuz tamamlandı!\n\n📋 Rezervasyon Bilgileri:\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${userReservationState.date}\n\n🍽️ YZT Döner'da sıcak karşılama sizi bekliyor!\n\nRezervasyon iptal etmek için: /cancel ${userReservationState.date} ${userReservationState.time} ${userReservationState.table}\nRezervasyonlarınızı görmek için: /myreservations`,
-                            `🥙 Harika! Rezervasyonunuz başarıyla kaydedildi!\n\n📋 Rezervasyon Detayları:\n👤 İsim: ${userReservationState.name}\n🪑 Masa: ${userReservationState.table}\n🕐 Saat: ${userReservationState.time}\n📅 Tarih: ${userReservationState.date}\n\n🍽️ YZT Döner'ın özel lezzetlerini tadacaksınız!\n\nRezervasyon iptal etmek için: /cancel ${userReservationState.date} ${userReservationState.time} ${userReservationState.table}\nRezervasyonlarınızı görmek için: /myreservations`
-                        ];
-                        
-                        const randomMessage = successMessages[Math.floor(Math.random() * successMessages.length)];
-                        await bot.sendMessage(chatId, randomMessage);
-                    } else {
-                        await bot.sendMessage(chatId, `❌ Rezervasyon yapılamadı: ${result.message}`);
-                    }
-                    
-                    // Rezervasyon durumunu temizle
-                    userReservationStates.delete(userId);
-                } else if (response === 'hayır' || response === 'no' || response === 'iptal') {
-                    await bot.sendMessage(chatId, `❌ Rezervasyon iptal edildi. YZT Döner'da başka bir rezervasyon yapmak isterseniz "rezervasyon" yazabilirsiniz.`);
-                    userReservationStates.delete(userId);
-                } else {
-                    await bot.sendMessage(chatId, `❓ Lütfen "EVET" veya "HAYIR" yazın.`);
-                }
                 return;
             }
         }
@@ -707,5 +894,5 @@ app.listen(port, () => {
 }); 
 
 console.log('Restaurant Reservation Bot is running...');
-console.log('Model: gemma3:1b');
+console.log('Model: gemma3:4b');
 console.log('Waiting for messages...');
