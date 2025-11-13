@@ -38,7 +38,7 @@ cp .env.example .env
 
 `.env` dosyasını düzenleyin:
 ```env
-TELEGRAM_BOT_TOKEN=8191910524:AAFhhcd4bgp3i5TGo12-LEKNSmiz9-NQh3Y
+TELEGRAM_BOT_TOKEN=...
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=gemma3:4b
 DATA_DIR=/Users/dai/github/telegram_booking_ai_agent/data
